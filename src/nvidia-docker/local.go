@@ -46,6 +46,14 @@ func devicesArgs() ([]string, error) {
 	}
 
 	if len(GPU) == 0 {
+		gpuIndex, err := docker.SelectGPU(len(devs))
+		if err != nil {
+			return nil, err
+		}
+		GPU = []string{gpuIndex}
+	}
+
+	if len(GPU) == 0 {
 		for i := range devs {
 			args = append(args, fmt.Sprintf("--device=%s", devs[i].Path))
 		}
