@@ -1,9 +1,8 @@
-package docker
+package nvidia
 
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	dockercli "github.com/fsouza/go-dockerclient"
 )
@@ -14,7 +13,7 @@ const (
 
 type (
 	pair struct {
-		Key   string
+		Key   int
 		Value int
 	}
 	pairList []pair
@@ -24,10 +23,11 @@ func (p pairList) Len() int           { return len(p) }
 func (p pairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
 func (p pairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
-func SelectGPU(gpuCount int) (string, error) {
-	usedGPUCountMap := map[string]int{}
-	for i := 0; i < gpuCount; i++ {
-		usedGPUCountMap[fmt.Sprintf("%d", i)] = 0
+func SelectGPU(devs []Device) (string, error) {
+	devCnt := len(devs)
+	usedGPUCountMap := map[int]int{}
+	for i := 0; i < devCnt; i++ {
+		usedGPUCountMap[i] = 0
 	}
 
 	client, err := dockercli.NewClient(endpoint)
@@ -41,15 +41,13 @@ func SelectGPU(gpuCount int) (string, error) {
 
 	for _, apiCont := range apiConts {
 		if cont, err := client.InspectContainer(apiCont.ID); err == nil {
-			for _, env := range cont.Config.Env {
-				if strings.HasPrefix(env, "NV_GPU=") {
-					splitVals := strings.Split(env, "=")
-					if len(splitVals) == 2 {
-						gpuIndex := splitVals[1]
-						if cnt, ok := usedGPUCountMap[gpuIndex]; ok {
-							usedGPUCountMap[gpuIndex] = cnt + 1
+			for _, device := range cont.HostConfig.Devices {
+				for i := range devs {
+					if device.PathOnHost == devs[i].Path {
+						if cnt, ok := usedGPUCountMap[i]; ok {
+							usedGPUCountMap[i] = cnt + 1
 						} else {
-							usedGPUCountMap[gpuIndex] = 1
+							usedGPUCountMap[i] = 1
 						}
 					}
 				}
@@ -66,5 +64,5 @@ func SelectGPU(gpuCount int) (string, error) {
 		pairs = append(pairs, pair{index, usedCnt})
 	}
 	sort.Sort(pairs)
-	return pairs[0].Key, nil
+	return fmt.Sprintf("%d", pairs[0].Key), nil
 }

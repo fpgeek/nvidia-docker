@@ -46,7 +46,7 @@ func devicesArgs() ([]string, error) {
 	}
 
 	if len(GPU) == 0 {
-		gpuIndex, err := docker.SelectGPU(len(devs))
+		gpuIndex, err := nvidia.SelectGPU(devs)
 		if err != nil {
 			return nil, err
 		}
